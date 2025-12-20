@@ -28,7 +28,7 @@
                         </li>
                         <!-- PlaceHolders -->
                          <li class="nav-item">
-                            <a class="nav-link disabled" href="#">Bills</a>
+                            <a class="nav-link" href="{{ url_for('main.bills') }}">Bills</a>
                          </li>
                          <li class="nav-item">
                             <a class="nav-link disabled" href="#">Paychecks</a>
@@ -42,7 +42,18 @@
         </nav>
 
         <main class="container py-4">
-            {% block content %}{% endblock %}
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="mb-3">
+                        {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} mb-2" role="alert">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
         </main>
 
         <!-- Booststrap JS Bundle -->
