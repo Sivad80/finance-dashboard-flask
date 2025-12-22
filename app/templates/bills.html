@@ -24,6 +24,7 @@
                 <th class="text-end">Amount</th>
                 <th class="text-end">Due Day</th>
                 <th class="text-end">Status</th>
+                <th class="text-end">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -39,6 +40,12 @@
                     {% else %}
                       <span class="badge text-bg-secondary">Inactive</span>
                     {% endif %}
+                  </td>
+                  <td class="text-end">
+                    <form method="POST" action="{{ url_for('main.delete_bill', bill_id=b.id) }}" class="d-inline"
+                    onsubmit="return confirm('Delete this bill?');">
+                      <button class="btn btn-sm btn-outline-danger rounded-pill px-3" type="submit">Delete</button>
+                    </form>
                   </td>
                 </tr>
               {% endfor %}

@@ -29,7 +29,6 @@ def dashboard():
         .order_by(Paycheck.pay_date.asc())
         .first()
     )
-
     next_paycheck_label = next_paycheck.pay_date.strftime("%b %d, %Y") if next_paycheck else "—"
 
     return render_template(
@@ -40,11 +39,19 @@ def dashboard():
         next_paycheck_label=next_paycheck_label,
     )
 
-
 @main.route('/bills')
 def bills():
     bills = Bill.query.order_by(Bill.due_day.asc(), Bill.name.asc()).all()
     return render_template('bills.html', bills=bills)
+
+@main.route("/bills/<int:bill_id>/delete", methods=["POST"])
+def delete_bill(bill_id):
+    bill = Bill.query.get_or_404(bill_id)
+    db.session.delete(bill)
+    db.session.commit()
+    flash("Bill deleted.", "success")
+    return redirect(url_for("main.bills"))
+
 
 # Create Bills Forms/Route
 @main.route('/bill/new', methods=['POST'])
