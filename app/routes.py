@@ -93,6 +93,53 @@ def create_bill():
     flash("Bill Added.", "success")
     return redirect(url_for('main.bills'))
 
+# Edit Bills
+@main.route("/bills/<int:bill_id>/edit")
+def edit_bill(bill_id):
+    bill = Bill.query.get_or_404(bill_id)
+    return render_template("bill_edit.html", bill=bill)
+
+
+@main.route("/bills/<int:bill_id>/update", methods=["POST"])
+def update_bill(bill_id):
+    bill = Bill.query.get_or_404(bill_id)
+
+    name = request.form.get("name", "").strip()
+    category = request.form.get("category", "Other").strip() or "Other"
+    amount_raw = request.form.get("amount", "0").strip()
+    due_day_raw = request.form.get("due_day", "1").strip()
+    is_active_raw = request.form.get("is_active", "on")  # checkbox sends "on" when checked
+
+    if not name:
+        flash("Bill name is required.", "danger")
+        return redirect(url_for("main.edit_bill", bill_id=bill_id))
+
+    try:
+        amount = float(amount_raw)
+    except ValueError:
+        flash("Amount must be a number.", "danger")
+        return redirect(url_for("main.edit_bill", bill_id=bill_id))
+
+    try:
+        due_day = int(due_day_raw)
+        if due_day < 1 or due_day > 31:
+            raise ValueError
+    except ValueError:
+        flash("Due day must be an integer between 1 and 31.", "danger")
+        return redirect(url_for("main.edit_bill", bill_id=bill_id))
+
+    bill.name = name
+    bill.category = category
+    bill.amount = amount
+    bill.due_day = due_day
+    bill.is_active = (is_active_raw == "on")
+
+    db.session.commit()
+    flash("Bill updated.", "success")
+    return redirect(url_for("main.bills"))
+
+# Paychecks Routes
+
 @main.route("/paychecks")
 def paychecks():
     paychecks = Paycheck.query.order_by(Paycheck.pay_date.asc()).all()
