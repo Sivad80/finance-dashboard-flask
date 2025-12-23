@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Paycheck | FinanceApp{% endblock %}
+
+{% block content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-1">Edit Paycheck</h1>
+      <div class="text-muted">Update income source, amount, and pay date.</div>
+    </div>
+
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.paychecks') }}">Back</a>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('main.update_paycheck', paycheck_id=paycheck.id) }}">
+        <div class="mb-3">
+          <label class="form-label">Source</label>
+          <input class="form-control" name="source" value="{{ paycheck.source }}" required>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Amount</label>
+          <input class="form-control" name="amount" type="number" step="0.01" min="0"
+                 value="{{ paycheck.amount }}" required>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Pay Date</label>
+          <input class="form-control" name="pay_date" type="date"
+                 value="{{ paycheck.pay_date.isoformat() }}" required>
+        </div>
+
+        <div class="mt-4 d-flex gap-2">
+          <button class="btn btn-primary" type="submit">Save Changes</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('main.paychecks') }}">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

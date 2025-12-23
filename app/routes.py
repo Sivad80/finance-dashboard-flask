@@ -10,6 +10,15 @@ main = Blueprint('main', __name__)
 
 @main.route("/")
 def dashboard():
+    today = date.today()
+    first_day = date(today.year, today.month, 1)
+    
+    # First Day of Next Month
+    if today.month == 12:
+        first_next = date(today.year + 1, 1, 1)
+    else:
+        first_next = date(today.year, today.month + 1, 1)
+
     total_bills = (
         db.session.query(func.coalesce(func.sum(Bill.amount), 0))
         .filter(Bill.is_active == True)
@@ -18,6 +27,8 @@ def dashboard():
 
     total_income = (
         db.session.query(func.coalesce(func.sum(Paycheck.amount), 0))
+        .filter(Paycheck.pay_date >= first_day)
+        .filter(Paycheck.pay_date < first_next)
         .scalar()
     )
 
@@ -173,3 +184,52 @@ def create_paycheck():
 
     flash("Paycheck added.", "success")
     return redirect(url_for("main.paychecks"))
+
+# Edit/Delete Paychecks
+
+@main.route('/paychecks/<int:paycheck_id>/delete', methods=['POST'])
+def delete_paycheck(paycheck_id):
+    paycheck = Paycheck.query.get_or_404(paycheck_id)
+    db.session.delete(paycheck)
+    db.session.commit()
+    flash("Paycheck deleted.", "success")
+    return redirect(url_for("main.paychecks"))
+
+@main.route("/paychecks/<int:paycheck_id>/edit")
+def edit_paycheck(paycheck_id):
+    paycheck = Paycheck.query.get_or_404(paycheck_id)
+    return render_template("paycheck_edit.html", paycheck=paycheck)
+
+
+@main.route("/paychecks/<int:paycheck_id>/update", methods=["POST"])
+def update_paycheck(paycheck_id):
+    paycheck = Paycheck.query.get_or_404(paycheck_id)
+
+    source = request.form.get("source", "").strip()
+    amount_raw = request.form.get("amount", "0").strip()
+    pay_date_raw = request.form.get("pay_date", "").strip()
+
+    if not source:
+        flash("Paycheck source is required.", "danger")
+        return redirect(url_for("main.edit_paycheck", paycheck_id=paycheck_id))
+
+    try:
+        amount = float(amount_raw)
+    except ValueError:
+        flash("Amount must be a number.", "danger")
+        return redirect(url_for("main.edit_paycheck", paycheck_id=paycheck_id))
+
+    try:
+        pay_date = date.fromisoformat(pay_date_raw)
+    except ValueError:
+        flash("Pay date must be a valid date.", "danger")
+        return redirect(url_for("main.edit_paycheck", paycheck_id=paycheck_id))
+
+    paycheck.source = source
+    paycheck.amount = amount
+    paycheck.pay_date = pay_date
+
+    db.session.commit()
+    flash("Paycheck updated.", "success")
+    return redirect(url_for("main.paychecks"))
+
