@@ -8,7 +8,7 @@
       <h1 class="h3 mb-1">Dashboard</h1>
       <div class="text-muted">Snapshot of bills, paychecks, and cash flow.</div>
     </div>
-    <button class="btn btn-primary" disabled>+ Quick Add</button>
+    <button class="btn btn-primary" data-bs-toggle='modal' data-bs-target="#quickAddModal">+ Quick Add</button>
   </div>
 
   <div class="row g-3">
@@ -95,19 +95,38 @@
     {% endif %}
   </div>
 </div>
-  <div class="row g-3 mt-2">
-    <div class="col-12 col-lg-7">
-      <div class="card shadow-sm">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <h2 class="h6 mb-0">Upcoming Bills</h2>
-            <span class="badge text-bg-secondary">placeholder</span>
-          </div>
-          <hr>
-          <p class="text-muted mb-0">We’ll show bills due soon here (from the database) in the next steps.</p>
-        </div>
-      </div>
-    </div>
+  <div class="d-flex justify-content-between align-items-center mb-2">
+  <div class="fw-semibold">Upcoming Bills</div>
+  <div class="text-muted small">
+    Next 30 days{% if payday_date %} (after payday){% endif %}
+  </div>
+</div>
+
+{% if upcoming_bills %}
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Bill</th>
+          <th class="text-end">Due</th>
+          <th class="text-end">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in upcoming_bills %}
+          <tr>
+            <td class="fw-semibold">{{ item.name }}</td>
+            <td class="text-end">{{ item.due.strftime("%b %d") }}</td>
+            <td class="text-end">${{ "%.2f"|format(item.amount) }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="text-muted">No upcoming bills in the next 30 days.</div>
+{% endif %}
+
 
     <div class="col-12 col-lg-5">
       <div class="card shadow-sm">
@@ -123,4 +142,92 @@
       </div>
     </div>
   </div>
+  <div class="modal fade" id="quickAddModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Quick Add</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <ul class="nav nav-tabs" id="quickAddTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-bill" data-bs-toggle="tab" data-bs-target="#pane-bill" type="button" role="tab">
+              Bill
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-paycheck" data-bs-toggle="tab" data-bs-target="#pane-paycheck" type="button" role="tab">
+              Paycheck
+            </button>
+          </li>
+        </ul>
+
+        <div class="tab-content pt-3">
+          <!-- BILL -->
+          <div class="tab-pane fade show active" id="pane-bill" role="tabpanel">
+            <form method="POST" action="{{ url_for('main.create_bill', next=url_for('main.dashboard')) }}">
+              <div class="row g-2">
+                <div class="col-md-5">
+                  <label class="form-label">Name</label>
+                  <input class="form-control" name="name" placeholder="Internet, Electric..." required>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Category</label>
+                  <input class="form-control" name="category" placeholder="Utilities">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Amount</label>
+                  <input class="form-control" name="amount" type="number" step="0.01" min="0" required>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Due Day</label>
+                  <input class="form-control" name="due_day" type="number" min="1" max="31" required>
+                </div>
+              </div>
+
+              <div class="form-check form-switch mt-3">
+                <input class="form-check-input" type="checkbox" id="qaBillActive" name="is_active" checked>
+                <label class="form-check-label" for="qaBillActive">Active</label>
+              </div>
+
+              <div class="mt-3 d-flex gap-2">
+                <button class="btn btn-primary" type="submit">Save Bill</button>
+                <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Close</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- PAYCHECK -->
+          <div class="tab-pane fade" id="pane-paycheck" role="tabpanel">
+            <form method="POST" action="{{ url_for('main.create_paycheck', next=url_for('main.dashboard')) }}">
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <label class="form-label">Source</label>
+                  <input class="form-control" name="source" placeholder="Optimum, Side gig..." required>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Amount</label>
+                  <input class="form-control" name="amount" type="number" step="0.01" min="0" required>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Pay Date</label>
+                  <input class="form-control" name="pay_date" type="date" required>
+                </div>
+              </div>
+
+              <div class="mt-3 d-flex gap-2">
+                <button class="btn btn-primary" type="submit">Save Paycheck</button>
+                <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Close</button>
+              </div>
+            </form>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}

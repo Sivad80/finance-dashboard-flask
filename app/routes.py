@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from .models import Bill, Paycheck
 from .extensions import db
-from datetime import date
+from datetime import date, timedelta
 from sqlalchemy import func
 from .utils import next_due_date
 
@@ -60,6 +60,22 @@ def dashboard():
             })
     bills_before_payday.sort(key=lambda x: x['due'])
     total_due_before_payday = sum(x['amount'] for x in bills_before_payday)
+    
+    window_end = today + timedelta(days=30)
+    
+    upcoming_bills = []
+    for b in active_bills:
+        due = next_due_date(b.due_day, today)
+        
+        # If we have a payday, "upcoming" means after payday but within 30 days
+        if payday_date:
+            if due > payday_date and due <= window_end:
+                upcoming_bills.append({"name": b.name, "due": due, "amount": float(b.amount)})
+            else:
+                # If no payday exists yet, just show next 30 days
+                if today <= due <= window_end:
+                    upcoming_bills.append({"name": b.name, "due": due, "amount": float(b.amount)})  
+    upcoming_bills.sort(key=lambda x: x["due"])
 
     return render_template(
         "dashboard.html",
@@ -70,6 +86,8 @@ def dashboard():
         bills_before_payday=bills_before_payday,
         total_due_before_payday=total_due_before_payday,
         payday_date=payday_date,
+        upcoming_bills=upcoming_bills,
+        window_end=window_end,
     )
 
 @main.route('/bills')
@@ -93,6 +111,7 @@ def create_bill():
     category = request.form.get('category', 'Other').strip() or "Other"
     amount_raw = request.form.get('amount', '0').strip()
     due_day_raw = request.form.get('due_day', '1').strip()
+    next_url = request.args.get('next')
 
     # Basic Validation
     if not name:
@@ -124,7 +143,7 @@ def create_bill():
     db.session.commit()
 
     flash("Bill Added.", "success")
-    return redirect(url_for('main.bills'))
+    return redirect(next_url or url_for('main.bills'))
 
 # Edit Bills
 @main.route("/bills/<int:bill_id>/edit")
@@ -183,6 +202,7 @@ def create_paycheck():
     source = request.form.get("source", "").strip()
     amount_raw = request.form.get("amount", "0").strip()
     pay_date_raw = request.form.get("pay_date", "").strip()
+    next_url = request.args.get('next')
 
     if not source:
         flash("Paycheck source is required.", "danger")
@@ -205,7 +225,7 @@ def create_paycheck():
     db.session.commit()
 
     flash("Paycheck added.", "success")
-    return redirect(url_for("main.paychecks"))
+    return redirect(next_url or url_for("main.paychecks"))
 
 # Edit/Delete Paychecks
 
