@@ -48,7 +48,53 @@
       </div>
     </div>
   </div>
+  
+  <div class="card shadow-sm mt-4">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div>
+        <div class="fw-semibold">Bills due before next paycheck</div>
+        <div class="text-muted small">
+          {% if payday_date %}
+            Through {{ payday_date.strftime("%b %d, %Y") }}
+          {% else %}
+            Add a future paycheck to enable this view
+          {% endif %}
+        </div>
+      </div>
 
+      <div class="text-end">
+        <div class="text-muted small">Total due</div>
+        <div class="fs-5 fw-semibold">${{ "%.2f"|format(total_due_before_payday) }}</div>
+      </div>
+    </div>
+
+    {% if bills_before_payday and payday_date %}
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Bill</th>
+              <th class="text-end">Due</th>
+              <th class="text-end">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in bills_before_payday %}
+              <tr>
+                <td class="fw-semibold">{{ item.name }}</td>
+                <td class="text-end">{{ item.due.strftime("%b %d") }}</td>
+                <td class="text-end">${{ "%.2f"|format(item.amount) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="text-muted">No bills due before your next paycheck.</div>
+    {% endif %}
+  </div>
+</div>
   <div class="row g-3 mt-2">
     <div class="col-12 col-lg-7">
       <div class="card shadow-sm">

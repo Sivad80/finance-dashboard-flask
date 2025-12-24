@@ -3,6 +3,8 @@ from .models import Bill, Paycheck
 from .extensions import db
 from datetime import date
 from sqlalchemy import func
+from .utils import next_due_date
+
 
 
 
@@ -41,6 +43,23 @@ def dashboard():
         .first()
     )
     next_paycheck_label = next_paycheck.pay_date.strftime("%b %d, %Y") if next_paycheck else "—"
+    payday_date = next_paycheck.pay_date if next_paycheck else None
+    
+    active_bills = Bill.query.filter(Bill.is_active == True).all()
+    
+    bills_before_payday = []
+    for b in active_bills:
+        due = next_due_date(b.due_day, today)
+        
+        # If we don't have a payday yet, we won't filter (Show empty list for now)
+        if payday_date and today <= due <= payday_date:
+            bills_before_payday.append({
+                "name": b.name,
+                "due": due, 
+                "amount": float(b.amount),
+            })
+    bills_before_payday.sort(key=lambda x: x['due'])
+    total_due_before_payday = sum(x['amount'] for x in bills_before_payday)
 
     return render_template(
         "dashboard.html",
@@ -48,6 +67,9 @@ def dashboard():
         total_bills=float(total_bills),
         remaining=float(remaining),
         next_paycheck_label=next_paycheck_label,
+        bills_before_payday=bills_before_payday,
+        total_due_before_payday=total_due_before_payday,
+        payday_date=payday_date,
     )
 
 @main.route('/bills')
