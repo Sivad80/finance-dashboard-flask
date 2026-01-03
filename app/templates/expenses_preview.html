@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Preview Import | FinanceApp{% endblock %}
+
+{% block content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-1">Preview Import</h1>
+      <div class="text-muted">
+        Showing up to 50 rows.
+        {% if errors and errors > 0 %}
+          <span class="ms-2 badge rounded-pill text-bg-warning">Skipped rows: {{ errors }}</span>
+        {% endif %}
+      </div>
+    </div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.expenses_upload') }}">Back</a>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      {% if preview %}
+        <div class="table-responsive mb-3">
+          <table class="table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Category</th>
+                <th class="text-end">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in preview %}
+                <tr>
+                  <td>{{ r.spent_date }}</td>
+                  <td class="fw-semibold">{{ r.description }}</td>
+                  <td><span class="badge rounded-pill text-bg-secondary">{{ r.category }}</span></td>
+                  <td class="text-end">${{ "%.2f"|format(r.amount) }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <form method="POST" action="{{ url_for('main.expenses_import') }}">
+          <button class="btn btn-primary" type="submit">Import These Rows</button>
+        </form>
+      {% else %}
+        <div class="text-muted">No preview rows available. Upload a CSV again.</div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

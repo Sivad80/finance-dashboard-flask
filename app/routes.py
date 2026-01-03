@@ -1,9 +1,11 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
-from .models import Bill, Paycheck
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session
+from .models import Bill, Paycheck, Expense
 from .extensions import db
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from sqlalchemy import func
 from .utils import next_due_date
+import csv
+import io
 
 
 
@@ -96,7 +98,154 @@ def dashboard():
         upcoming_bills=upcoming_bills,
         window_end=window_end,
     )
+    
+# Expenses Routes
+@main.route("/expenses")
+def expenses():
+    expenses = Expense.query.order_by(Expense.spent_date.desc(), Expense.id.desc()).limit(200).all()
+    total = sum(float(e.amount) for e in expenses)
+    return render_template("expenses.html", expenses=expenses, total=total)
 
+@main.route("/expenses/upload", methods=["GET"])
+def expenses_upload():
+    return render_template("expenses_upload.html")
+
+@main.route("/expenses/upload", methods=["POST"])
+def expenses_upload_post():
+    """
+    Upload CSV -> parse -> store preview rows in session -> redirect to preview page.
+    Expected columns (case-insensitive): date, description, amount, category(optional)
+    """
+    f = request.files.get("file")
+    if not f or f.filename == "":
+        flash("Please choose a CSV file.", "danger")
+        return redirect(url_for("main.expenses_upload"))
+    
+    raw_bytes = f.read()
+
+    raw = None
+    for enc in ("utf-8-sig", "utf-16", "utf-16le", "utf-16be", "cp1252", "latin-1"):
+        try:
+            raw = raw_bytes.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+
+    if raw is None:
+        raw = raw_bytes.decode("utf-8", errors="replace")
+
+    
+    reader = csv.DictReader(io.StringIO(raw))
+    if not reader.fieldnames:
+        flash("CSV appears to be empty or missing a header row.", "danger")
+        return redirect(url_for("main.expenses_upload"))
+    
+    # Normalize header names
+    headers = [h.strip().lower() for h in reader.fieldnames]
+    
+    def pick(col_name: str) -> str | None:
+        for h in reader.fieldnames:
+            if h and h.strip().lower() == col_name:
+                return h
+        return None
+    
+    col_date = pick("date")
+    col_desc = pick("description")
+    col_amt = pick("amount")
+    col_cat = pick("category")
+    
+    if not (col_date and col_desc and col_amt):
+        flash("CSV must include headers: date, description, amount (category optional).", "danger")
+        return redirect(url_for("main.expenses_upload"))
+    
+    preview = []
+    errors = 0
+    
+    for i, row in enumerate(reader, start=1):
+        if i > 2000: # Safety Cap
+            break
+        
+        date_raw = (row.get(col_date) or "").strip()
+        desc = (row.get(col_desc) or "").strip()
+        amt_raw = (row.get(col_amt) or "").strip()
+        cat = ((row.get(col_cat) or "").strip() if col_cat else "") or "uncategoried"
+
+        if not date_raw or not desc or not amt_raw:
+            errors += 1
+            continue
+        
+        # Parse Date: Expects YYYY-MM-DD (Expand Later)
+        try:
+            # Supports YYYY-MM-DD and MM/DD/YYYY
+            if "-" in date_raw:
+                spent_date = date.fromisoformat(date_raw)
+            else:
+                spent_date = datetime.strptime(date_raw, "%m/%d/%Y").date()
+        except ValueError:
+            errors += 1
+            continue
+    
+        # Parse Amount
+        try: 
+            amount = float(amt_raw.replace("$", "").replace(",", ""))
+        except ValueError:
+            errors += 1
+            continue
+        
+        preview.append({
+            "spent_date": spent_date.isoformat(),
+            "description": desc,
+            "amount": round(amount, 2),
+            "category": cat,
+        })
+        
+        if len(preview) >= 50: # Preview Cap
+            break
+        
+    session["expense_import_preview"] = preview
+    session["expense_import_errors"] = errors
+    
+    if not preview:
+        flash("No valid rows found. Check date format (YYYY-MM-DD) and required columns.", "danger")
+        return redirect(url_for("main.expenses_upload"))
+    
+    return redirect(url_for("main.expenses_preview"))
+
+@main.route("/expenses/preview")
+def expenses_preview():
+    preview = session.get("expense_import_preview", [])
+    errors = session.get("expense_import_errors", 0)
+    return render_template("expenses_preview.html", preview=preview, errors=errors)
+
+@main.route("/expenses/import", methods=["POST"])
+def expenses_import():
+    preview = session.get("expense_import_preview", [])
+    if not preview:
+        flash("Nothing to import, Upload a CSV first.", "warning")
+        return redirect(url_for("main.expenses_upload"))
+    
+    count = 0
+    for item in preview:
+        e = Expense(
+            spent_date=date.fromisoformat(item["spent_date"]),
+            description=item["description"],
+            amount=float(item["amount"]),
+            category=item.get("category") or "Uncategorized",
+        )
+        db.session.add(e)
+        count += 1
+        
+    db.session.commit()
+    
+    # Clear Preview
+    session.pop("expense_import_preview", None)
+    session.pop("expense_import_errors", None)
+    
+    flash(f"Imported {count} expenses.", "success")
+    return redirect(url_for("main.expenses"))
+
+# Bills Routes
+        
 @main.route('/bills')
 def bills():
     bills = Bill.query.order_by(Bill.due_day.asc(), Bill.name.asc()).all()

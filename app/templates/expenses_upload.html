@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Upload Expenses | FinanceApp{% endblock %}
+
+{% block content %}
+  <div class="mb-4">
+    <h1 class="h3 mb-1">Upload Expenses (CSV)</h1>
+    <div class="text-muted">CSV headers required: <code>date</code>, <code>description</code>, <code>amount</code>. Optional: <code>category</code>.</div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form method="POST" enctype="multipart/form-data" action="{{ url_for('main.expenses_upload_post') }}">
+        <div class="mb-3">
+          <label class="form-label">CSV File</label>
+          <input class="form-control" type="file" name="file" accept=".csv" required>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button class="btn btn-primary" type="submit">Preview Import</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('main.expenses') }}">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

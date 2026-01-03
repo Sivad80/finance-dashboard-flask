@@ -25,3 +25,14 @@ class Paycheck(db.Model):
 
     created_at = db.Column(db.Date, nullable=False, default=date.today)
     
+class Expense(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    
+    spent_date = db.Column(db.Date, nullable=False)
+    description = db.Column(db.String(255), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    
+    category = db.Column(db.String(50), nullable=False, default="Uncategorized")
+    
+    created_at = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
+    
