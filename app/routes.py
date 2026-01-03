@@ -50,6 +50,10 @@ def dashboard():
     bills_before_payday = []
     for b in active_bills:
         due = next_due_date(b.due_day, today)
+        # Skip if already marked paid for this due date
+        if b.paid_through and b.paid_through >= due: 
+            continue
+        
         
         # If we don't have a payday yet, we won't filter (Show empty list for now)
         if payday_date and today <= due <= payday_date:
@@ -66,6 +70,9 @@ def dashboard():
     upcoming_bills = []
     for b in active_bills:
         due = next_due_date(b.due_day, today)
+        # Skip if already marked paid for this due date
+        if b.paid_through and b.paid_through >= due: 
+            continue
         
         # If we have a payday, "upcoming" means after payday but within 30 days
         if payday_date:
@@ -189,6 +196,27 @@ def update_bill(bill_id):
     db.session.commit()
     flash("Bill updated.", "success")
     return redirect(url_for("main.bills"))
+
+@main.route("/bills/<int:bill_id>/paid", methods=["POST"])
+def mark_bill_paid(bill_id):
+    bill = Bill.query.get_or_404(bill_id)
+    today = date.today()
+    
+    # Use Helper to Mark Paid through the next Due Date
+    due = next_due_date(bill.due_day, today)
+    bill.paid_through = due
+    
+    db.session.commit()
+    flash("Bill marked as paid.", "success")
+    return redirect(request.referrer or url_for("main.bills"))
+
+@main.route("/bills/<int:bill_id>/unpaid", methods=["POST"])
+def mark_bill_unpaid(bill_id):
+    bill = Bill.query.get_or_404(bill_id)
+    bill.paid_through = None
+    db.session.commit()
+    flash("Bill marked as unpaid.", "info")
+    return redirect(request.referrer or url_for("main.bills"))
 
 # Paychecks Routes
 

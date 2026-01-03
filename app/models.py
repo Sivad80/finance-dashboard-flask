@@ -13,6 +13,7 @@ class Bill(db.Model):
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     create_at = db.Column(db.Date, nullable=False, default=date.today)
 
+    paid_through = db.Column(db.Date, nullable=True)
 
 class Paycheck(db.Model):
     id = db.Column(db.Integer, primary_key=True)
