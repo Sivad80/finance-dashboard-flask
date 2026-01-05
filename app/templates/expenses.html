@@ -2,52 +2,174 @@
 {% block title %}Expenses | FinanceApp{% endblock %}
 
 {% block content %}
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-      <h1 class="h3 mb-1">Expenses</h1>
-      <div class="text-muted">Recent expenses (showing up to 200).</div>
-    </div>
 
-    <div class="d-flex gap-2">
-      <a class="btn btn-outline-secondary" href="{{ url_for('main.expenses_upload') }}">Upload CSV</a>
-    </div>
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="h3 mb-1">Expenses</h1>
+    <div class="text-muted">Review, categorize, and track spending over time.</div>
   </div>
 
-  <div class="card shadow-sm mb-3">
-    <div class="card-body d-flex justify-content-between align-items-center">
-      <div class="text-muted">Total (shown)</div>
-      <div class="fs-5 fw-semibold">${{ "%.2f"|format(total) }}</div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.expenses_upload') }}">
+      Upload CSV
+    </a>
+
+    {% if show != "dupes" %}
+      <a class="btn btn-outline-warning"
+         href="{{ url_for('main.expenses', show='dupes', preset=preset, start=start.isoformat(), end=end.isoformat()) }}">
+        Show Duplicates
+      </a>
+    {% else %}
+      <a class="btn btn-outline-secondary"
+         href="{{ url_for('main.expenses', show='all', preset=preset, start=start.isoformat(), end=end.isoformat()) }}">
+        Show All
+      </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Total -->
+<div class="card shadow-sm mb-3">
+  <div class="card-body d-flex justify-content-between align-items-center">
+    <div class="text-muted">Total (filtered)</div>
+    <div class="fs-5 fw-semibold">${{ "%.2f"|format(total) }}</div>
+  </div>
+</div>
+
+<!-- Date Filters -->
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <div class="d-flex flex-wrap gap-2 align-items-end">
+      <div class="btn-group" role="group" aria-label="Date presets">
+        <a class="btn btn-sm btn-outline-secondary {% if preset == 'this_month' %}active{% endif %}"
+           href="{{ url_for('main.expenses', preset='this_month', show=show) }}">
+          This Month
+        </a>
+        <a class="btn btn-sm btn-outline-secondary {% if preset == 'last_30' %}active{% endif %}"
+           href="{{ url_for('main.expenses', preset='last_30', show=show) }}">
+          Last 30
+        </a>
+        <a class="btn btn-sm btn-outline-secondary {% if preset == 'last_90' %}active{% endif %}"
+           href="{{ url_for('main.expenses', preset='last_90', show=show) }}">
+          Last 90
+        </a>
+      </div>
+
+      <form method="GET" action="{{ url_for('main.expenses') }}" class="d-flex gap-2 ms-auto">
+        <input type="hidden" name="show" value="{{ show }}">
+        <input type="hidden" name="preset" value="{{ preset }}">
+
+        <div>
+          <label class="form-label small mb-1 text-muted">Start</label>
+          <input type="date" name="start" value="{{ start.isoformat() }}" class="form-control form-control-sm">
+        </div>
+
+        <div>
+          <label class="form-label small mb-1 text-muted">End</label>
+          <input type="date" name="end" value="{{ end.isoformat() }}" class="form-control form-control-sm">
+        </div>
+
+        <div class="d-flex align-items-end">
+          <button class="btn btn-sm btn-outline-primary" type="submit">Apply</button>
+        </div>
+      </form>
     </div>
   </div>
+</div>
 
-  <div class="card shadow-sm">
-    <div class="card-body">
-      {% if expenses %}
+<!-- Table + Categorization -->
+<div class="card shadow-sm">
+  <div class="card-body">
+
+    {% if expenses %}
+
+      <!-- Bulk category form wraps the table ONLY (no nested forms anywhere) -->
+      <form method="POST" action="{{ url_for('main.bulk_update_expense_category') }}">
+
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+          <select class="form-select" name="category" style="max-width: 260px;" required>
+            {% for c in categories %}
+              <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+          </select>
+
+          <button class="btn btn-outline-primary" type="submit">
+            Apply to Selected
+          </button>
+
+          <div class="text-muted small ms-auto">
+            Tip: check rows → bulk assign → Save category per row if needed.
+          </div>
+        </div>
+
         <div class="table-responsive">
           <table class="table align-middle mb-0">
             <thead>
               <tr>
+                <th style="width:44px;"></th>
                 <th>Date</th>
                 <th>Description</th>
-                <th>Category</th>
+                <th style="width:280px;">Category</th>
                 <th class="text-end">Amount</th>
               </tr>
             </thead>
+
             <tbody>
               {% for e in expenses %}
                 <tr>
+                  <td>
+                    <input class="form-check-input" type="checkbox" name="expense_ids" value="{{ e.id }}">
+                  </td>
+
                   <td>{{ e.spent_date.strftime("%Y-%m-%d") }}</td>
-                  <td class="fw-semibold">{{ e.description }}</td>
-                  <td><span class="badge rounded-pill text-bg-secondary">{{ e.category }}</span></td>
+
+                  <td class="fw-semibold">
+                    {{ e.description }}
+                    {% if e.is_duplicate %}
+                      <span class="badge rounded-pill text-bg-warning ms-2">Duplicate</span>
+                    {% endif %}
+                  </td>
+
+                  <td>
+                    <div class="d-flex gap-2 align-items-center">
+                      <select class="form-select form-select-sm"
+                              name="category"
+                              form="catForm{{ e.id }}"
+                              style="max-width: 190px;">
+                        {% for c in categories %}
+                          <option value="{{ c }}" {% if e.category == c %}selected{% endif %}>{{ c }}</option>
+                        {% endfor %}
+                      </select>
+
+                      <form id="catForm{{ e.id }}"
+                            method="POST"
+                            action="{{ url_for('main.update_expense_category', expense_id=e.id) }}">
+                      </form>
+
+                      <button class="btn btn-sm btn-outline-secondary"
+                              type="submit"
+                              form="catForm{{ e.id }}">
+                        Save
+                      </button>
+                    </div>
+                  </td>
+
                   <td class="text-end">${{ "%.2f"|format(e.amount) }}</td>
                 </tr>
               {% endfor %}
             </tbody>
+
           </table>
         </div>
-      {% else %}
-        <div class="text-muted">No expenses yet. Upload a CSV to get started.</div>
-      {% endif %}
-    </div>
+
+      </form>
+
+    {% else %}
+      <div class="text-muted">No expenses found for this filter range.</div>
+    {% endif %}
+
   </div>
+</div>
+
 {% endblock %}

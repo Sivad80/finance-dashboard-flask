@@ -35,4 +35,8 @@ class Expense(db.Model):
     category = db.Column(db.String(50), nullable=False, default="Uncategorized")
     
     created_at = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
+    fingerprint = db.Column(db.String(64), nullable=True, index=True)
+    is_duplicate = db.Column(db.Boolean, nullable=False, default=False)
+    duplicate_of_id = db.Column(db.Integer, nullable=True)  # plain int for SQLite-friendly migration
+
     

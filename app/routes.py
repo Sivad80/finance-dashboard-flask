@@ -6,6 +6,19 @@ from sqlalchemy import func
 from .utils import next_due_date
 import csv
 import io
+from .constants import EXPENSE_CATEGORIES
+import hashlib
+import re
+
+# Helper Functions
+def expense_fingerprint(spent_date, amount, description):
+    desc = (description or "").strip().lower()
+    desc = re.sub(r"\s+", " ", desc)
+    desc = re.sub(r"[^a-z0-9 \-]", "", desc)
+    
+    key = f"{spent_date.isoformat()}|{float(amount):.2f}|{desc}"
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
 
 
 
@@ -100,11 +113,59 @@ def dashboard():
     )
     
 # Expenses Routes
+from datetime import date, timedelta
+from sqlalchemy import func
+
 @main.route("/expenses")
 def expenses():
-    expenses = Expense.query.order_by(Expense.spent_date.desc(), Expense.id.desc()).limit(200).all()
-    total = sum(float(e.amount) for e in expenses)
-    return render_template("expenses.html", expenses=expenses, total=total)
+    # --- filters from query string ---
+    preset = request.args.get("preset", "this_month")
+    show = request.args.get("show", "all")  # all | dupes
+
+    today = date.today()
+
+    # default date range
+    if preset == "last_30":
+        start = today - timedelta(days=30)
+    elif preset == "last_90":
+        start = today - timedelta(days=90)
+    else:
+        start = date(today.year, today.month, 1)
+
+    end = today
+
+    # optional custom override
+    start_raw = request.args.get("start")
+    end_raw = request.args.get("end")
+
+    try:
+        if start_raw:
+            start = date.fromisoformat(start_raw)
+        if end_raw:
+            end = date.fromisoformat(end_raw)
+    except ValueError:
+        flash("Invalid date filter. Use YYYY-MM-DD.", "warning")
+
+    # --- build query ---
+    q = Expense.query.filter(Expense.spent_date >= start, Expense.spent_date <= end)
+
+    if show == "dupes":
+        q = q.filter(Expense.is_duplicate == True)
+
+    expenses = q.order_by(Expense.spent_date.desc(), Expense.id.desc()).limit(200).all()
+    total = q.with_entities(func.coalesce(func.sum(Expense.amount), 0)).scalar()
+
+    return render_template(
+        "expenses.html",
+        expenses=expenses,
+        total=total,
+        categories=EXPENSE_CATEGORIES,
+        show=show,
+        preset=preset,
+        start=start,
+        end=end,
+    )
+
 
 @main.route("/expenses/upload", methods=["GET"])
 def expenses_upload():
@@ -225,15 +286,30 @@ def expenses_import():
         return redirect(url_for("main.expenses_upload"))
     
     count = 0
+
     for item in preview:
+        spent_date = date.fromisoformat(item["spent_date"])
+        amount = float(item["amount"])
+        description = item["description"]
+        category = item.get("category") or "Uncategorized"
+
+        fp = expense_fingerprint(spent_date, amount, description)
+
+        existing = Expense.query.filter_by(fingerprint=fp).first()
+
         e = Expense(
-            spent_date=date.fromisoformat(item["spent_date"]),
-            description=item["description"],
-            amount=float(item["amount"]),
-            category=item.get("category") or "Uncategorized",
+            spent_date=spent_date,
+            description=description,
+            amount=amount,
+            category=category,
+            fingerprint=fp,
+            is_duplicate=bool(existing),
+            duplicate_of_id=existing.id if existing else None
         )
+
         db.session.add(e)
         count += 1
+
         
     db.session.commit()
     
@@ -244,6 +320,54 @@ def expenses_import():
     flash(f"Imported {count} expenses.", "success")
     return redirect(url_for("main.expenses"))
 
+@main.route("/expenses/<int:expense_id>/category", methods=["POST"])
+def update_expense_category(expense_id):
+    e = Expense.query.get_or_404(expense_id)
+    category = (request.form.get("category") or "").strip()
+    
+    if category not in EXPENSE_CATEGORIES:
+        flash("Invalid category.", "danger")
+        return redirect(request.referrer or url_for("main.expenses"))
+
+    e.category = category
+    db.session.commit()
+    flash("Category updated.", "success")
+    return redirect(request.referrer or url_for("main.expenses"))
+
+@main.route("/expenses/bulk-category", methods=["POST"])
+def bulk_update_expense_category():
+    category = (request.form.get("category") or "").strip()
+    ids = request.form.getlist("expense_ids")
+    
+    if category not in EXPENSE_CATEGORIES:
+        flash("Invalid category.", "danger")
+        return redirect(request.referrer or url_for("main.expenses"))
+    
+    if not ids:
+        flash("Select at least one expense.", "warning")
+        return redirect(request.referrer or url_for("main.expenses"))
+    
+    # Convert to Ints Safely
+    expense_ids = []
+    for x in ids:
+        try: 
+            expense_ids.append(int(x))
+        except ValueError:
+            continue
+        
+    if not expense_ids:
+        flash("No valid expenses selected.", "warning")
+        return redirect(request.referrer or url_for("main.expenses"))
+    
+    Expense.query.filter(Expense.id.in_(expense_ids)).update(
+        {"category": category},
+        synchronize_session=False
+    )
+    db.session.commit()
+    
+    flash(f"Updated {len(expense_ids)} expenses.", "success")
+    return redirect(request.referrer or url_for("main.expenses"))
+    
 # Bills Routes
         
 @main.route('/bills')
