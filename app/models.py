@@ -37,6 +37,12 @@ class Expense(db.Model):
     created_at = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
     fingerprint = db.Column(db.String(64), nullable=True, index=True)
     is_duplicate = db.Column(db.Boolean, nullable=False, default=False)
-    duplicate_of_id = db.Column(db.Integer, nullable=True)  # plain int for SQLite-friendly migration
+    duplicate_of_id = db.Column(db.Integer, nullable=True) 
+ 
+class PaySchedule(db.Model):
+     id = db.Column(db.Integer, primary_key=True)
+     anchor_payday = db.Column(db.Date, nullable=False) # A Real PayDay Friday
+     created_at = db.Column(db.DateTime, server_default=db.func.now())
+     
 
     

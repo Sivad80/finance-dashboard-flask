@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Pay Schedule | FinanceApp{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="h3 mb-1">Pay Schedule</h1>
+    <div class="text-muted">Anchor your bi-weekly pay period to a real payday Friday.</div>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <form method="POST" class="d-flex flex-wrap gap-3 align-items-end">
+      <div>
+        <label class="form-label">Anchor Payday (Friday)</label>
+        <input type="date" name="anchor_payday" class="form-control" required
+               value="{{ schedule.anchor_payday.isoformat() if schedule else '' }}">
+        <div class="form-text">Pick a Friday you were paid (e.g., your most recent payday).</div>
+      </div>
+
+      <button class="btn btn-primary" type="submit">Save</button>
+    </form>
+
+    {% if schedule %}
+      <hr>
+      <div class="text-muted small">
+        Current anchor: <strong>{{ schedule.anchor_payday.isoformat() }}</strong>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from .models import Bill, Paycheck, Expense
+from .models import Bill, Paycheck, Expense, PaySchedule
 from .extensions import db
 from datetime import date, timedelta, datetime
 from sqlalchemy import func
@@ -19,7 +19,33 @@ def expense_fingerprint(spent_date, amount, description):
     key = f"{spent_date.isoformat()}|{float(amount):.2f}|{desc}"
     return hashlib.sha256(key.encode("utf-8")).hexdigest()
 
+def get_pay_period(today: date) -> tuple[date, date]:
+    """
+    Returns (start, end) for the current bi-weekly pay period ancored to a stored payday.
+    """
+    schedule = PaySchedule.query.order_by(PaySchedule.id.desc()).first()
+    
+    # Fallback if not configured yet: Rolling 14 days
+    if not schedule:
+        start = today - timedelta(days=13)
+        return start, today
+    anchor = schedule.anchor_payday # A real Friday Payday
+    delta_days = (today - anchor).days
+    
+    # How many 14 day blocks since anchor (floor)
+    periods = delta_days // 14
+    
+    # Most recent payday on/before today
+    start = anchor + timedelta(days=periods * 14)
+    
+    # If today is before anchor (negative delta), correct:
+    if start > today:
+        start = start - timedelta(days=14)
+        
+    end = start + timedelta(days=13)
+    return start, end
 
+    
 
 
 
@@ -121,12 +147,13 @@ def expenses():
     show = request.args.get("show", "all")  # all | dupes
 
     today = date.today()
+    end = today
 
     # default date range
     if preset == 'all_time': 
         start = date(2000, 1, 1)
     elif preset == 'this_pay_period':
-        start = today - timedelta(days=13) # Rolling 14 Day Window
+        start, end = get_pay_period(today)
     elif preset == "last_30":
         start = today - timedelta(days=30)
     elif preset == "last_90":
@@ -134,7 +161,7 @@ def expenses():
     else:
         start = date(today.year, today.month, 1)
 
-    end = today
+    
 
     # optional custom override
     start_raw = request.args.get("start")
@@ -611,4 +638,33 @@ def update_paycheck(paycheck_id):
     db.session.commit()
     flash("Paycheck updated.", "success")
     return redirect(url_for("main.paychecks"))
+
+# Settings Routes
+@main.route("/settings/pay-schedule", methods=["GET", "POST"])
+def pay_schedule_settings():
+    schedule = PaySchedule.query.order_by(PaySchedule.id.desc()).first()
+    
+    if request.method == "POST":
+        anchor_raw = request.form.get("anchor_payday", "").strip()
+        if not anchor_raw:
+            flash("Please choose an anchor payday.", "danger")
+            return redirect(url_for("main.pay_schedule_settings"))
+        
+        try:
+            anchor = date.fromisoformat(anchor_raw)
+        except ValueError:
+            flash("Invalid date format. Use YYYY-MM-DD.", "danger")
+            return redirect(url_for("main.pay_schedule_settings"))
+        
+        if anchor.weekday() != 4:
+            flash("That date is not a Friday. Please select a Friday payday.", "warning")
+            return redirect(url_for("main.pay_schedule_settings"))
+        
+        db.session.add(PaySchedule(anchor_payday=anchor))
+        db.session.commit()
+        flash("Pay schedule saved.", "success")
+        return redirect(url_for("main.pay_schedule_settings"))
+    
+    return render_template("pay_schedule_settings.html", schedule=schedule)
+        
 

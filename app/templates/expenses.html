@@ -46,7 +46,7 @@
            href="{{ url_for('main.expenses', preset='all_time', show=show) }}">
            All time
         </a>
-        <a class="btn btn-sm btn-outline-seconary {% if preset == 'this_pay_period' %}active{endif %}"
+        <a class="btn btn-sm btn-outline-secondary {% if preset == 'this_pay_period' %}active{% endif %}"
           href="{{ url_for('main.expenses', preset='this_pay_period', show=show) }}">
           This Pay Period
         </a>
