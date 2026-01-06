@@ -6,7 +6,7 @@
     <div>
       <h1 class="h3 mb-1">Preview Import</h1>
       <div class="text-muted">
-        Showing up to 50 rows.
+        Showing first {{ preview|length }} of {{ total_rows }} rows.
         {% if errors and errors > 0 %}
           <span class="ms-2 badge rounded-pill text-bg-warning">Skipped rows: {{ errors }}</span>
         {% endif %}

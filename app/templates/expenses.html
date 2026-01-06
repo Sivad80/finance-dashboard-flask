@@ -42,6 +42,14 @@
   <div class="card-body">
     <div class="d-flex flex-wrap gap-2 align-items-end">
       <div class="btn-group" role="group" aria-label="Date presets">
+        <a class="btn btn-sm btn-outline-secondary {% if preset == 'all_time' %}active{% endif %}"
+           href="{{ url_for('main.expenses', preset='all_time', show=show) }}">
+           All time
+        </a>
+        <a class="btn btn-sm btn-outline-seconary {% if preset == 'this_pay_period' %}active{endif %}"
+          href="{{ url_for('main.expenses', preset='this_pay_period', show=show) }}">
+          This Pay Period
+        </a>
         <a class="btn btn-sm btn-outline-secondary {% if preset == 'this_month' %}active{% endif %}"
            href="{{ url_for('main.expenses', preset='this_month', show=show) }}">
           This Month
@@ -97,7 +105,14 @@
           <button class="btn btn-outline-primary" type="submit">
             Apply to Selected
           </button>
-
+          <button class="btn btn-outline-danger"
+                  type="submit"
+                  formaction="{{ url_for('main.bulk_delete_expenses') }}"
+                  formmethod="POST"
+                  formnovalidate
+                  onclick="return confirm('Delete selected expenses? This cannot be undone.');">
+            Delete Selected
+          </button>
           <div class="text-muted small ms-auto">
             Tip: check rows → bulk assign → Save category per row if needed.
           </div>
@@ -107,11 +122,14 @@
           <table class="table align-middle mb-0">
             <thead>
               <tr>
-                <th style="width:44px;"></th>
+                <th style="width:44px;">
+                  <input class="form-check-input" type="checkbox" id="selectAllExpenses">
+                </th>
                 <th>Date</th>
                 <th>Description</th>
                 <th style="width:280px;">Category</th>
                 <th class="text-end">Amount</th>
+                <th class="text-end" style="width:110px;">Actions</th>
               </tr>
             </thead>
 
@@ -119,7 +137,7 @@
               {% for e in expenses %}
                 <tr>
                   <td>
-                    <input class="form-check-input" type="checkbox" name="expense_ids" value="{{ e.id }}">
+                    <input class="form-check-input expense-checkbox" type="checkbox" name="expense_ids" value="{{ e.id }}">
                   </td>
 
                   <td>{{ e.spent_date.strftime("%Y-%m-%d") }}</td>
@@ -154,7 +172,14 @@
                       </button>
                     </div>
                   </td>
-
+                  <td class="text-end">
+                    <form method="POST"
+                          action="{{ url_for('main.delete_expense', expense_id=e.id) }}"
+                          class="d-inline"
+                          onsubmit="return confirm('Delete this expense?');">
+                      <button class="btn btn-sm btn-outline-danger">Delete</button>
+                    </form>
+                  </td>
                   <td class="text-end">${{ "%.2f"|format(e.amount) }}</td>
                 </tr>
               {% endfor %}
@@ -171,5 +196,30 @@
 
   </div>
 </div>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const selectAll = document.getElementById("selectAllExpenses");
+    if (!selectAll) return;
+
+    function getBoxes() {
+      return Array.from(document.querySelectorAll("input.expense-checkbox[name='expense_ids']"));
+    }
+
+    selectAll.addEventListener("change", () => {
+      const boxes = getBoxes();
+      boxes.forEach(cb => cb.checked = selectAll.checked);
+    });
+
+    document.addEventListener("change", (e) => {
+      if (!e.target.matches("input.expense-checkbox[name='expense_ids']")) return;
+
+      const boxes = getBoxes();
+      const checkedCount = boxes.filter(cb => cb.checked).length;
+
+      selectAll.checked = boxes.length > 0 && checkedCount === boxes.length;
+      selectAll.indeterminate = checkedCount > 0 && checkedCount < boxes.length;
+    });
+  });
+</script>
 
 {% endblock %}

@@ -113,8 +113,6 @@ def dashboard():
     )
     
 # Expenses Routes
-from datetime import date, timedelta
-from sqlalchemy import func
 
 @main.route("/expenses")
 def expenses():
@@ -125,7 +123,11 @@ def expenses():
     today = date.today()
 
     # default date range
-    if preset == "last_30":
+    if preset == 'all_time': 
+        start = date(2000, 1, 1)
+    elif preset == 'this_pay_period':
+        start = today - timedelta(days=13) # Rolling 14 Day Window
+    elif preset == "last_30":
         start = today - timedelta(days=30)
     elif preset == "last_90":
         start = today - timedelta(days=90)
@@ -229,7 +231,7 @@ def expenses_upload_post():
         date_raw = (row.get(col_date) or "").strip()
         desc = (row.get(col_desc) or "").strip()
         amt_raw = (row.get(col_amt) or "").strip()
-        cat = ((row.get(col_cat) or "").strip() if col_cat else "") or "uncategoried"
+        cat = ((row.get(col_cat) or "").strip() if col_cat else "") or "Uncategorized"
 
         if not date_raw or not desc or not amt_raw:
             errors += 1
@@ -260,8 +262,7 @@ def expenses_upload_post():
             "category": cat,
         })
         
-        if len(preview) >= 50: # Preview Cap
-            break
+        
         
     session["expense_import_preview"] = preview
     session["expense_import_errors"] = errors
@@ -276,7 +277,8 @@ def expenses_upload_post():
 def expenses_preview():
     preview = session.get("expense_import_preview", [])
     errors = session.get("expense_import_errors", 0)
-    return render_template("expenses_preview.html", preview=preview, errors=errors)
+    preview_rows = preview[:50] 
+    return render_template("expenses_preview.html", preview=preview_rows, total_rows=len(preview), errors=errors)
 
 @main.route("/expenses/import", methods=["POST"])
 def expenses_import():
@@ -367,6 +369,40 @@ def bulk_update_expense_category():
     
     flash(f"Updated {len(expense_ids)} expenses.", "success")
     return redirect(request.referrer or url_for("main.expenses"))
+    
+@main.route("/expenses/<int:expense_id>/delete", methods=["POST"])  
+def delete_expense(expense_id):
+    e = Expense.query.get_or_404(expense_id)
+    db.session.delete(e)
+    db.session.commit()
+    flash("Expense deleted.", "success")
+    return redirect(request.referrer or url_for("main.expenses"))
+
+@main.route("/expenses/bulk-delete", methods=["POST"])
+def bulk_delete_expenses():
+    ids = request.form.getlist("expense_ids")
+    
+    if not ids: 
+        flash("Select at least one expense to delete.", "warning") 
+        return redirect(request.referrer or url_for("main.expenses"))
+    
+    expense_ids = []
+    for x in ids:
+        try:
+            expense_ids.append(int(x))
+        except ValueError:
+            continue
+        
+    if not expense_ids:
+        flash("No valid expenses selected.", "warning")
+        return redirect(request.referrer or url_for("main.expenses"))
+    
+    deleted = Expense.query.filter(Expense.id.in_(expense_ids)).delete(synchronize_session=False)
+    db.session.commit()
+    
+    flash(f"Deleted {deleted} expenses.", "success")
+    return redirect(request.referrer or url_for("main.expenses"))
+
     
 # Bills Routes
         
